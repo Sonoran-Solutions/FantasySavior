@@ -56,6 +56,22 @@ test("next user pick", function () {
   assert.strictEqual(FS.picksUntilNextUserPick(sched, 1), 5);
 });
 
+test("return horizon advances past the pick currently on the clock", function () {
+  const sched = FS.myPickSchedule(8, 6, 16);
+  assert.strictEqual(FS.nextUserPick(sched, 11), 11);
+  assert.strictEqual(FS.followingUserPick(sched, 11), 22);
+  assert.strictEqual(FS.followingUserPick(sched, 12), 22);
+});
+
+test("return horizon handles snake corners and final pick", function () {
+  const slot1 = FS.myPickSchedule(8, 1, 16);
+  const slot8 = FS.myPickSchedule(8, 8, 16);
+  assert.strictEqual(FS.followingUserPick(slot1, 16), 17);
+  assert.strictEqual(FS.followingUserPick(slot8, 8), 9);
+  assert.strictEqual(FS.followingUserPick(slot1, 113), 128);
+  assert.strictEqual(FS.followingUserPick(slot1, 128), null);
+});
+
 // ---------------------------------------------------------------------------
 console.log("Draft state");
 
@@ -82,6 +98,32 @@ test("draftedByMe records roster", function () {
   let s = FS.createInitialState(3);
   s = FS.applyPick(s, players[0].id, true).state;
   assert.deepStrictEqual(FS.myPlayerIds(s), [players[0].id]);
+});
+
+test("unlisted pick advances without consuming a listed player and undoes exactly", function () {
+  let s = FS.createInitialState(3);
+  const firstId = players[0].id;
+  const r = FS.applyUnlistedPick(s);
+  assert.ok(r.ok);
+  s = r.state;
+  assert.strictEqual(s.currentOverallPick, 2);
+  assert.deepStrictEqual(s.picks[0], { overall: 1, playerId: null, draftedByMe: false, unlisted: true });
+  assert.ok(!FS.draftedPlayerIds(s)[firstId]);
+  const u = FS.undo(s);
+  assert.ok(u.ok);
+  assert.strictEqual(u.state.currentOverallPick, 1);
+  assert.deepStrictEqual(u.state.picks, []);
+});
+
+test("multiple unlisted picks survive JSON round trip", function () {
+  let s = FS.createInitialState(1);
+  s = FS.applyUnlistedPick(s).state;
+  s = FS.applyPick(s, players[0].id, false).state;
+  s = FS.applyUnlistedPick(s).state;
+  const restored = JSON.parse(JSON.stringify(s));
+  assert.strictEqual(restored.currentOverallPick, 4);
+  assert.strictEqual(restored.picks.filter((p) => p.unlisted).length, 2);
+  assert.strictEqual(FS.draftedPlayerIds(restored)[players[0].id], true);
 });
 
 test("undo reverses exactly", function () {
@@ -114,6 +156,34 @@ test("recommend excludes drafted players", function () {
   const rec = FS.recommend(players, s);
   const ids = rec.ranked.map((x) => x.player.id);
   assert.ok(!ids.includes(draftedId), "drafted player should be absent");
+});
+
+test("recommend uses the following pick while user is on the clock", function () {
+  let s = FS.createInitialState(6);
+  while (s.currentOverallPick < 11) {
+    s = FS.applyUnlistedPick(s).state;
+  }
+  const rec = FS.recommend(players, s);
+  assert.strictEqual(rec.isUserPick, true);
+  assert.strictEqual(rec.nextUserPick, 11);
+  assert.strictEqual(rec.returnHorizon, 22);
+  assert.strictEqual(rec.picksUntilReturn, 11);
+});
+
+test("recommend uses upcoming pick between turns and finite final horizon", function () {
+  let s = FS.createInitialState(1);
+  while (s.currentOverallPick < 12) s = FS.applyUnlistedPick(s).state;
+  let rec = FS.recommend(players, s);
+  assert.strictEqual(rec.isUserPick, false);
+  assert.strictEqual(rec.nextUserPick, 16);
+  assert.strictEqual(rec.returnHorizon, 16);
+
+  s = FS.createInitialState(1);
+  while (s.currentOverallPick < 113) s = FS.applyUnlistedPick(s).state;
+  rec = FS.recommend(players, s);
+  assert.strictEqual(rec.isUserPick, true);
+  assert.strictEqual(rec.returnHorizon, 128);
+  assert.ok(rec.ranked.every((x) => Number.isFinite(x.returnProbability)));
 });
 
 test("K/DST suppressed early", function () {

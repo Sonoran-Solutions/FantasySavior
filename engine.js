@@ -67,6 +67,17 @@
     return null;
   }
 
+  function followingUserPick(schedule, currentOverallPick) {
+    for (const p of schedule) {
+      if (p > currentOverallPick) return p;
+    }
+    return null;
+  }
+
+  function isUserPick(schedule, currentOverallPick) {
+    return schedule.indexOf(currentOverallPick) !== -1;
+  }
+
   function picksUntilNextUserPick(schedule, currentOverallPick) {
     const next = nextUserPick(schedule, currentOverallPick);
     if (next == null) return null;
@@ -95,20 +106,29 @@
     return {
       currentOverallPick: state.currentOverallPick,
       picks: state.picks.map(function (p) {
-        return { overall: p.overall, playerId: p.playerId, draftedByMe: p.draftedByMe };
+        return copyPick(p);
       })
+    };
+  }
+
+  function copyPick(p) {
+    return {
+      overall: p.overall,
+      playerId: p.playerId,
+      draftedByMe: p.draftedByMe,
+      ...(p.unlisted ? { unlisted: true } : {})
     };
   }
 
   function draftedPlayerIds(state) {
     const set = {};
-    for (const p of state.picks) set[p.playerId] = true;
+    for (const p of state.picks) if (p.playerId != null) set[p.playerId] = true;
     return set;
   }
 
   function myPlayerIds(state) {
     return state.picks
-      .filter(function (p) { return p.draftedByMe; })
+      .filter(function (p) { return p.draftedByMe && p.playerId != null; })
       .map(function (p) { return p.playerId; });
   }
 
@@ -132,6 +152,20 @@
     return { ok: true, state: next };
   }
 
+  function applyUnlistedPick(state, draftedByMe) {
+    if (isComplete(state)) return { ok: false, reason: "draft-complete" };
+    const next = {
+      version: state.version,
+      draftPosition: state.draftPosition,
+      currentOverallPick: state.currentOverallPick + 1,
+      picks: state.picks.concat([
+        { overall: state.currentOverallPick, playerId: null, draftedByMe: !!draftedByMe, unlisted: true }
+      ]),
+      undoStack: state.undoStack.concat([snapshot(state)])
+    };
+    return { ok: true, state: next };
+  }
+
   // Exact multi-step undo. Returns { ok, state }.
   function undo(state) {
     if (!state.undoStack.length) {
@@ -143,7 +177,7 @@
       draftPosition: state.draftPosition,
       currentOverallPick: prev.currentOverallPick,
       picks: prev.picks.map(function (p) {
-        return { overall: p.overall, playerId: p.playerId, draftedByMe: p.draftedByMe };
+        return copyPick(p);
       }),
       undoStack: state.undoStack.slice(0, -1)
     };
@@ -259,9 +293,9 @@
   }
 
   // Probability a player is still on the board at the user's next pick (logistic).
-  function returnProbability(player, nextUserPick) {
-    if (nextUserPick == null) return 0;
-    const distance = player.adp - nextUserPick;
+  function returnProbability(player, returnHorizon) {
+    if (returnHorizon == null) return 0;
+    const distance = player.adp - returnHorizon;
     return 1 / (1 + Math.exp(-distance / WEIGHTS.returnLogisticScale));
   }
 
@@ -398,7 +432,7 @@
   }
 
   // Human-readable reasons for a scored candidate.
-  function reasonsFor(player, ctx) {
+  function reasonsFor(player, ctx, playerReturnProbability) {
     const reasons = [];
     const rw = ROUND_WEIGHTS[roundBucket(ctx.round)];
 
@@ -429,9 +463,9 @@
     ) {
       reasons.push("Completes your FLEX");
     }
-    if (ctx.picksUntilNext <= 2 && player.returnProbability < 0.3) {
+    if (ctx.picksUntilReturn != null && ctx.picksUntilReturn <= 2 && playerReturnProbability < 0.3) {
       reasons.push("Unlikely to survive to your next pick");
-    } else if (player.returnProbability < 0.15) {
+    } else if (playerReturnProbability < 0.15) {
       reasons.push("Unlikely to return");
     }
     if (hasUpsideTag(player) && ctx.round >= 9) {
@@ -458,7 +492,7 @@
       guidance.push({
         type: "WAIT ON QB",
         reasons: [
-          qbRemaining + " comparable QBs remain",
+          qbRemaining + " QBs remain in the player pool",
           ctx.picksUntilNext <= 6
             ? "Your next pick is only " + ctx.picksUntilNext + " selections away"
             : "You can wait for better value"
@@ -469,7 +503,7 @@
       guidance.push({
         type: "WAIT ON TE",
         reasons: [
-          teRemaining + " TEs remain",
+          teRemaining + " TEs remain in the player pool",
           "Do not force a mid-tier TE while upside is available"
         ]
       });
@@ -485,7 +519,12 @@
     const schedule = myPickSchedule(LEAGUE.teams, state.draftPosition, LEAGUE.totalRounds);
     const round = currentRound(LEAGUE.teams, state.currentOverallPick);
     const next = nextUserPick(schedule, state.currentOverallPick);
+    const userTurn = isUserPick(schedule, state.currentOverallPick);
+    const returnHorizon = userTurn
+      ? followingUserPick(schedule, state.currentOverallPick)
+      : next;
     const picksUntilNext = next == null ? 0 : next - state.currentOverallPick;
+    const picksUntilReturn = returnHorizon == null ? null : returnHorizon - state.currentOverallPick;
 
     const myPlayers = myPlayerIds(state)
       .map(function (id) { return playerById(players, id); })
@@ -515,6 +554,7 @@
       currentOverallPick: state.currentOverallPick,
       nextUserPick: next,
       picksUntilNext: picksUntilNext,
+      picksUntilReturn: picksUntilReturn,
       tierRemaining: tierRemaining,
       positionRemaining: positionRemaining,
       starters: starters,
@@ -524,7 +564,7 @@
 
     const scored = [];
     for (const p of available) {
-      p.returnProbability = returnProbability(p, next);
+      const playerReturnProbability = returnProbability(p, returnHorizon);
       const score =
         basePlayerValue(p) +
         adpValue(p, state.currentOverallPick) +
@@ -536,14 +576,14 @@
         injuryPenalty(p) -
         kdstPenalty(p, round) +
         kdstFillBonus(p, starters, round) +
-        (1 - p.returnProbability) * ROUND_WEIGHTS[roundBucket(round)].wontReturn;
+        (1 - playerReturnProbability) * ROUND_WEIGHTS[roundBucket(round)].wontReturn;
 
       scored.push({
         player: p,
         score: score,
-        returnProbability: p.returnProbability,
-        returnLabel: returnLabel(p.returnProbability),
-        reasons: reasonsFor(p, ctx)
+        returnProbability: playerReturnProbability,
+        returnLabel: returnLabel(playerReturnProbability),
+        reasons: reasonsFor(p, ctx, playerReturnProbability)
       });
     }
 
@@ -590,6 +630,9 @@
       currentOverallPick: state.currentOverallPick,
       nextUserPick: next,
       picksUntilNext: picksUntilNext,
+      isUserPick: userTurn,
+      returnHorizon: returnHorizon,
+      picksUntilReturn: picksUntilReturn,
       availableCount: available.length,
       tierRemaining: tierRemaining,
       positionRemaining: positionRemaining,
@@ -624,6 +667,8 @@
     myPickSchedule: myPickSchedule,
     currentRound: currentRound,
     nextUserPick: nextUserPick,
+    followingUserPick: followingUserPick,
+    isUserPick: isUserPick,
     picksUntilNextUserPick: picksUntilNextUserPick,
     createInitialState: createInitialState,
     isComplete: isComplete,
@@ -631,6 +676,7 @@
     draftedPlayerIds: draftedPlayerIds,
     myPlayerIds: myPlayerIds,
     applyPick: applyPick,
+    applyUnlistedPick: applyUnlistedPick,
     undo: undo,
     countsByPosition: countsByPosition,
     startersFilled: startersFilled,

@@ -92,6 +92,9 @@ button:active { transform: translateY(1px); }
   white-space: nowrap;
 }
 
+.data-status { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.data-warning { color: var(--amber); }
+
 .top-actions { display: flex; gap: 6px; }
 .top-actions .btn { padding: 0 10px; font-size: 13px; min-height: 38px; }
 
@@ -204,6 +207,8 @@ button:active { transform: translateY(1px); }
   color: var(--text-dim);
   border-bottom: 1px solid var(--border);
 }
+.unlisted-action { padding: 8px 10px 0; }
+.unlisted-action .btn { width: 100%; min-height: 38px; border-color: var(--amber); color: var(--amber); }
 .tier-depletion { text-align: right; }
 
 .board-list {

@@ -8,6 +8,7 @@
   var players = [];
   var playersById = {};
   var state = null;
+  var dataMetadata = null;
 
   var filter = "ALL";
   var searchQuery = "";
@@ -43,6 +44,7 @@
     });
     playersById = {};
     for (var i = 0; i < players.length; i++) playersById[players[i].id] = players[i];
+    dataMetadata = window.FANTASY_SAVIOR_DATA.metadata || {};
   }
 
   function loadState() {
@@ -66,7 +68,9 @@
     if (!Array.isArray(s.undoStack)) return false;
     for (var i = 0; i < s.picks.length; i++) {
       var p = s.picks[i];
-      if (!p || typeof p.overall !== "number" || typeof p.playerId !== "string") return false;
+      if (!p || typeof p.overall !== "number") return false;
+      if (p.playerId !== null && typeof p.playerId !== "string") return false;
+      if (p.playerId === null && p.unlisted !== true) return false;
       if (typeof p.draftedByMe !== "boolean") return false;
     }
     return true;
@@ -136,10 +140,17 @@
     if (!state) return;
     var schedule = FS.myPickSchedule(FS.LEAGUE.teams, state.draftPosition, FS.LEAGUE.totalRounds);
     var next = FS.nextUserPick(schedule, state.currentOverallPick);
+    var onClock = FS.isUserPick(schedule, state.currentOverallPick);
     var round = FS.currentRound(FS.LEAGUE.teams, state.currentOverallPick);
     $("draftStatus").textContent =
       "Slot " + state.draftPosition + "  ·  Pick " + state.currentOverallPick + "/" + FS.LEAGUE.totalPicks +
-      "  ·  Round " + round + "  ·  Next pick " + (next == null ? "—" : next);
+      "  ·  Round " + round + "  ·  " + (onClock ? "YOUR PICK NOW" : "NEXT OPPORTUNITY " + (next == null ? "—" : next));
+    var generated = dataMetadata.generatedAt ? new Date(dataMetadata.generatedAt) : null;
+    var generatedText = generated && !isNaN(generated.getTime())
+      ? generated.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+      : "unknown";
+    $("dataStatus").textContent = "DATA: " + generatedText + (dataMetadata.refreshBeforeDraft ? " · REFRESH RECOMMENDED" : "");
+    $("dataStatus").className = "data-status" + (dataMetadata.refreshBeforeDraft ? " data-warning" : "");
   }
 
   function renderUndoButton() {
@@ -223,6 +234,8 @@
       injBadge = '<span class="injury-badge' + sev + '">' + escapeHtml(inj) + "</span>";
     }
     var adpTxt = p.adp != null ? String(Math.round(p.adp)) : "—";
+    var schedule = FS.myPickSchedule(FS.LEAGUE.teams, state.draftPosition, FS.LEAGUE.totalRounds);
+    var onClock = FS.isUserPick(schedule, state.currentOverallPick);
     return (
       '<div class="player-row" data-id="' + escapeHtml(p.id) + '">' +
         '<span class="pos-badge pos-' + escapeHtml(p.position) + '">' + escapeHtml(p.position) + "</span>" +
@@ -238,8 +251,9 @@
           "</div>" +
         "</div>" +
         '<div class="player-actions">' +
-          '<button class="pick-btn other" data-action="other">Other</button>' +
-          '<button class="pick-btn mine" data-action="mine">Mine</button>' +
+          (onClock
+            ? '<button class="pick-btn mine" data-action="mine">Draft to me</button>'
+            : '<button class="pick-btn other" data-action="other">Mark drafted</button>') +
         "</div>" +
       "</div>"
     );
@@ -257,12 +271,16 @@
     }
 
     // Pick context pills.
-    var nextTxt = rec.nextUserPick == null ? "—" : rec.nextUserPick;
-    var untilTxt = rec.picksUntilNext == null ? "—" : rec.picksUntilNext;
+    var nextTxt = rec.isUserPick
+      ? (rec.returnHorizon == null ? "—" : rec.returnHorizon)
+      : (rec.nextUserPick == null ? "—" : rec.nextUserPick);
+    var untilTxt = rec.isUserPick
+      ? (rec.picksUntilReturn == null ? "—" : rec.picksUntilReturn)
+      : (rec.picksUntilNext == null ? "—" : rec.picksUntilNext);
     $("pickContext").innerHTML =
       '<div class="ctx-pill"><strong>Current pick</strong>' + escapeHtml(rec.currentOverallPick) + "</div>" +
       '<div class="ctx-pill"><strong>Round</strong>' + escapeHtml(rec.round) + "</div>" +
-      '<div class="ctx-pill"><strong>Your next pick</strong>' + escapeHtml(nextTxt) + "</div>" +
+      '<div class="ctx-pill"><strong>' + (rec.isUserPick ? "Next opportunity" : "Your next pick") + "</strong>" + escapeHtml(nextTxt) + "</div>" +
       '<div class="ctx-pill"><strong>Picks until</strong>' + escapeHtml(untilTxt) + "</div>";
 
     // Recommendation.
@@ -317,7 +335,7 @@
   function shortlistRole(s, rec) {
     if (rec.top && s.player.id === rec.top.player.id) return "TAKE";
     if (rec.altPosition && s.player.id === rec.altPosition.player.id) return "Alternative position";
-    if (rec.bestValue && s.player.id === rec.bestValue.player.id) return "Best value";
+    if (rec.bestValue && s.player.id === rec.bestValue.player.id) return "Best player available";
     if (rec.bestUpside && s.player.id === rec.bestUpside.player.id) return "Upside swing";
     return "Also consider";
   }
@@ -339,7 +357,7 @@
             "</div>" +
           "</div>" +
           '<div class="player-actions">' +
-            '<button class="pick-btn mine" data-id="' + escapeHtml(p.id) + '" data-action="mine">Mine</button>' +
+            '<button class="pick-btn ' + (rec.isUserPick ? "mine" : "other") + '" data-id="' + escapeHtml(p.id) + '" data-action="' + (rec.isUserPick ? "mine" : "other") + '">' + (rec.isUserPick ? "Draft to me" : "Mark drafted") + '</button>' +
           "</div>" +
         "</div>";
     });
@@ -376,7 +394,7 @@
               '<span class="slot-pos">Rk ' + escapeHtml(p.rank) + "</span>" +
             "</div>";
         });
-      } else if (o.key !== "FLEX" && counts[o.key] < o.req) {
+      } else if (counts[o.key] < o.req || o.key === "FLEX") {
         html +=
           '<div class="roster-slot">' +
             '<span class="slot-pos">' + escapeHtml(o.label) + "</span>" +
@@ -398,6 +416,9 @@
   // -------------------------------------------------------------------------
   function doPick(playerId, draftedByMe) {
     if (!state) return;
+    var schedule = FS.myPickSchedule(FS.LEAGUE.teams, state.draftPosition, FS.LEAGUE.totalRounds);
+    if (FS.isUserPick(schedule, state.currentOverallPick) !== !!draftedByMe &&
+        !confirm("This is scheduled as " + (FS.isUserPick(schedule, state.currentOverallPick) ? "your" : "an opponent's") + " pick. Record it anyway?")) return;
     var result = FS.applyPick(state, playerId, draftedByMe);
     if (!result.ok) {
       toast(result.reason === "already-drafted" ? "Player already drafted." : "Draft is complete.", "error");
@@ -407,6 +428,18 @@
     saveState();
     renderApp();
     if (FS.isComplete(state)) toast("Draft complete — 128 picks recorded.", "ok");
+  }
+
+  function doUnlistedPick() {
+    if (!state) return;
+    var schedule = FS.myPickSchedule(FS.LEAGUE.teams, state.draftPosition, FS.LEAGUE.totalRounds);
+    var draftedByMe = FS.isUserPick(schedule, state.currentOverallPick);
+    var result = FS.applyUnlistedPick(state, draftedByMe);
+    if (!result.ok) { toast("Draft is complete.", "error"); return; }
+    state = result.state;
+    saveState();
+    renderApp();
+    toast(draftedByMe ? "Unlisted pick drafted to you." : "Unlisted pick recorded.", "ok");
   }
 
   function doUndo() {
@@ -490,6 +523,7 @@
     });
 
     $("undoBtn").addEventListener("click", doUndo);
+    $("unlistedBtn").addEventListener("click", doUnlistedPick);
     $("resetBtn").addEventListener("click", doReset);
     $("exportBtn").addEventListener("click", doExport);
 
