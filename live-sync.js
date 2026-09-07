@@ -1,11 +1,35 @@
 /* FantasySavior ESPN Live Mode adapter. No credentials or provider logic live here. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
+  if (typeof module === "object" && module.exports) module.exports = factory();
   else root.FantasySaviorLiveSync = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
   var VALID_POSITIONS = ["QB", "RB", "WR", "TE", "DST", "K"];
+  var ESPN_PRO_TEAM_TO_ABBR = {
+    1: "ATL", 2: "BUF", 3: "CHI", 4: "CIN", 5: "CLE", 6: "DAL", 7: "DEN", 8: "DET",
+    9: "GB", 10: "TEN", 11: "IND", 12: "KC", 13: "LV", 14: "LAR", 15: "MIA", 16: "MIN",
+    17: "NE", 18: "NO", 19: "NYG", 20: "NYJ", 21: "PHI", 22: "ARI", 23: "PIT", 24: "LAC",
+    25: "SF", 26: "SEA", 27: "TB", 28: "WAS", 29: "CAR", 30: "JAX", 33: "BAL", 34: "HOU"
+  };
+  var DEFENSE_ALIASES = {
+    ARI: ["arizona cardinals", "cardinals", "ari"], ATL: ["atlanta falcons", "falcons", "atl"],
+    BAL: ["baltimore ravens", "ravens", "bal"], BUF: ["buffalo bills", "bills", "buf"],
+    CAR: ["carolina panthers", "panthers", "car"], CHI: ["chicago bears", "bears", "chi"],
+    CIN: ["cincinnati bengals", "bengals", "cin"], CLE: ["cleveland browns", "browns", "cle"],
+    DAL: ["dallas cowboys", "cowboys", "dal"], DEN: ["denver broncos", "broncos", "den"],
+    DET: ["detroit lions", "lions", "det"], GB: ["green bay packers", "packers", "gb"],
+    HOU: ["houston texans", "texans", "hou"], IND: ["indianapolis colts", "colts", "ind"],
+    JAX: ["jacksonville jaguars", "jaguars", "jax"], KC: ["kansas city chiefs", "chiefs", "kc"],
+    LAC: ["los angeles chargers", "chargers", "lac"], LAR: ["los angeles rams", "rams", "lar"],
+    LV: ["las vegas raiders", "raiders", "lv", "oakland raiders"], MIA: ["miami dolphins", "dolphins", "mia"],
+    MIN: ["minnesota vikings", "vikings", "min"], NE: ["new england patriots", "patriots", "ne"],
+    NO: ["new orleans saints", "saints", "no"], NYG: ["new york giants", "giants", "nyg"],
+    NYJ: ["new york jets", "jets", "nyj"], PHI: ["philadelphia eagles", "eagles", "phi"],
+    PIT: ["pittsburgh steelers", "steelers", "pit"], SF: ["san francisco 49ers", "49ers", "sf"],
+    SEA: ["seattle seahawks", "seahawks", "sea"], TB: ["tampa bay buccaneers", "buccaneers", "tb", "bucs"],
+    TEN: ["tennessee titans", "titans", "ten"], WAS: ["washington commanders", "commanders", "was"]
+  };
 
   function normalizeName(value) {
     return String(value || "")
@@ -17,13 +41,30 @@
       .trim();
   }
 
+  function defenseKey(value, proTeamId) {
+    var fromTeam = ESPN_PRO_TEAM_TO_ABBR[String(proTeamId || "")];
+    if (fromTeam) return fromTeam;
+    var cleaned = normalizeName(value).replace(/\b(defense|d st|dst)\b/g, "").trim();
+    for (var abbr in DEFENSE_ALIASES) {
+      if (DEFENSE_ALIASES[abbr].some(function (alias) { return normalizeName(alias) === cleaned; })) return abbr;
+    }
+    return null;
+  }
+
   function positionMatches(player, position) {
     if (!position || !player.position) return true;
-    if (player.position === position) return true;
-    return position === "DST" && player.position === "DST";
+    return player.position === position;
   }
 
   function resolvePlayer(pick, players) {
+    if (pick.position === "DST") {
+      var key = defenseKey(pick.name, pick.proTeamId);
+      if (!key) return null;
+      var defenses = players.filter(function (player) {
+        return player.position === "DST" && (player.team === key || defenseKey(player.name, null) === key);
+      });
+      return defenses.length === 1 ? defenses[0] : null;
+    }
     var name = normalizeName(pick.name);
     if (!name) return null;
     var matches = players.filter(function (player) {
@@ -125,7 +166,6 @@
     var active = false;
     var paused = false;
     var busy = false;
-    var interval = 10000;
     var lastOverall = null;
 
     function emit(phase, message, live) {
@@ -138,18 +178,21 @@
     async function pollNow() {
       if (!active || paused || busy) return;
       busy = true;
-      emit("connecting", "CONNECTING…", false);
+      emit("connecting", "CONNECTING…", true);
       try {
         var response = await (options.fetchJson || function () { return fetch("/api/espn/draft", { cache: "no-store" }).then(function (r) { return r.json(); }); })();
+        // Pause/stop may happen while the request is in flight. Never reconcile
+        // or schedule after control has been handed back to Manual Mode.
+        if (!active || paused) return;
         if (!response || response.ok !== true) {
           if (response && response.code === "auth-failed") { active = false; emit("auth-failed", "AUTH FAILED · manual mode available", false); }
           else if (response && response.code === "conflict") { active = false; emit("conflict", "CONFLICT · manual mode available", false); }
-          else emit("degraded", (response && response.message) || "DEGRADED · retrying", false);
+          else emit("degraded", (response && response.message) || "DEGRADED · retrying", true);
           schedule(10000);
           return;
         }
         if (!response.capability || response.capability.liveChangeObserved !== true) {
-          emit("probing", "PROBING · waiting for observed ESPN pick update", false);
+          emit("probing", "PROBING · waiting for observed ESPN pick update", true);
           schedule(response.inProgress ? 3000 : 10000);
           return;
         }
@@ -167,16 +210,36 @@
         }
         emit("synced", "SYNCED" + (lastOverall == null ? "" : " · Pick " + lastOverall), true);
         if (options.onResult) options.onResult(result);
-        interval = response.inProgress ? 3000 : 10000;
-        schedule(interval);
+        schedule(response.inProgress ? 3000 : 10000);
       } catch (error) {
-        emit("degraded", "DEGRADED · retrying", false);
-        schedule(10000);
+        if (active && !paused) {
+          emit("degraded", "DEGRADED · retrying", true);
+          schedule(10000);
+        }
       } finally { busy = false; }
     }
-    function start() { active = true; paused = false; emit("connecting", "CONNECTING…", false); pollNow(); }
-    return { start: start, stop: stop, pause: pause, pollNow: pollNow, isActive: function () { return active && !paused; }, status: function () { return { active: active, paused: paused, lastOverall: lastOverall }; } };
+    function start() {
+      if (active && !paused) return;
+      active = true;
+      paused = false;
+      emit("connecting", "CONNECTING…", true);
+      pollNow();
+    }
+    return {
+      start: start,
+      stop: stop,
+      pause: pause,
+      pollNow: pollNow,
+      isActive: function () { return active && !paused; },
+      status: function () { return { active: active, paused: paused, lastOverall: lastOverall }; }
+    };
   }
 
-  return { normalizeName: normalizeName, resolvePlayer: resolvePlayer, reconcile: reconcile, create: create };
+  return {
+    normalizeName: normalizeName,
+    defenseKey: defenseKey,
+    resolvePlayer: resolvePlayer,
+    reconcile: reconcile,
+    create: create
+  };
 });

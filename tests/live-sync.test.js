@@ -66,4 +66,57 @@ assert.strictEqual(replayState.currentOverallPick, 129);
 assert.strictEqual(replayState.picks.length, 128);
 assert.strictEqual(new Set(replayState.picks.map(p => p.playerId)).size, 128);
 
-console.log("Live-sync tests passed.");
+const texans = Live.resolvePlayer({ name: "Texans D/ST", position: "DST" }, players);
+const broncos = Live.resolvePlayer({ name: "Broncos D/ST", position: "DST" }, players);
+const rams = Live.resolvePlayer({ name: "Los Angeles Rams D/ST", position: "DST" }, players);
+assert.strictEqual(texans && texans.team, "HOU");
+assert.strictEqual(broncos && broncos.team, "DEN");
+assert.strictEqual(rams && rams.team, "LAR");
+
+function tick() { return new Promise((resolve) => setImmediate(resolve)); }
+(async function testControllerStateMachine() {
+  let rejectFetch;
+  const statuses = [];
+  const controller = Live.create({
+    FS,
+    getState: () => FS.createInitialState(1),
+    getPlayers: () => players,
+    fetchJson: () => new Promise((resolve, reject) => { rejectFetch = reject; }),
+    setState: () => { throw new Error("transient failure must not mutate state"); },
+    onStatus: (status) => statuses.push(status)
+  });
+  controller.start();
+  assert.strictEqual(statuses[statuses.length - 1].live, true);
+  rejectFetch(new Error("network down"));
+  await tick();
+  await tick();
+  assert.strictEqual(statuses[statuses.length - 1].phase, "degraded");
+  assert.strictEqual(statuses[statuses.length - 1].live, true);
+  assert.strictEqual(controller.isActive(), true);
+  controller.pause();
+  assert.strictEqual(statuses[statuses.length - 1].phase, "paused");
+  assert.strictEqual(controller.isActive(), false);
+  controller.stop();
+
+  let resolveFetch;
+  let setCount = 0;
+  const pausedController = Live.create({
+    FS,
+    getState: () => FS.createInitialState(1),
+    getPlayers: () => players,
+    fetchJson: () => new Promise((resolve) => { resolveFetch = resolve; }),
+    setState: () => { setCount++; },
+    onStatus: () => {}
+  });
+  pausedController.start();
+  pausedController.pause();
+  resolveFetch({ ok: true, picks: [], capability: { liveChangeObserved: true } });
+  await tick();
+  await tick();
+  assert.strictEqual(setCount, 0, "pause must prevent an in-flight response from mutating state");
+  pausedController.stop();
+  console.log("Live-sync tests passed.");
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

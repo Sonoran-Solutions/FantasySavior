@@ -28,6 +28,13 @@ OVERALL_KEYS = ('overallPickNumber', 'overall', 'pickNumber', 'overallPick')
 
 _last_completed_count: int | None = None
 _live_change_observed = False
+_player_directory: dict[int, dict[str, Any]] | None = None
+_directory_miss_attempted: set[int] = set()
+
+ALLOWED_STATIC_FILES = {
+    '/', '/index.html', '/styles.css', '/engine.js', '/live-sync.js', '/app.js',
+    '/manifest.json', '/data/players.data.js', '/data/draft-day-refresh.js'
+}
 
 
 def read_env_file(path: Path = ENV_PATH) -> dict[str, str]:
@@ -141,7 +148,15 @@ def collect_player_directory(node: Any, result: dict[int, dict[str, Any]]) -> No
     pid = as_int(first_value(node, PLAYER_ID_KEYS))
     name = player_name(node)
     if pid is not None and pid > 0 and (name or player_position(node)):
-        result[pid] = {'name': name, 'position': player_position(node)}
+        pro_team = first_value(node, ('proTeamId', 'proTeamID', 'teamId', 'teamID'))
+        nested_player = node.get('player')
+        if pro_team is None and isinstance(nested_player, dict):
+            pro_team = first_value(nested_player, ('proTeamId', 'proTeamID', 'teamId', 'teamID'))
+        result[pid] = {
+            'name': name,
+            'position': player_position(node),
+            'proTeamId': as_int(pro_team) if as_int(pro_team) is not None else pro_team,
+        }
     for value in node.values():
         if isinstance(value, (dict, list)):
             collect_player_directory(value, result)
@@ -160,9 +175,10 @@ def pick_rows(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
-def normalize_draft_payload(payload: Any, team_id: str = '') -> dict[str, Any]:
-    directory: dict[int, dict[str, Any]] = {}
-    collect_player_directory(payload, directory)
+def normalize_draft_payload(payload: Any, team_id: str = '', directory: dict[int, dict[str, Any]] | None = None) -> dict[str, Any]:
+    # Draft-detail responses are intentionally treated as ID-only. Player
+    # metadata must come from the separate server-side directory fetch.
+    directory = directory or {}
     normalized: list[dict[str, Any]] = []
     for row in pick_rows(payload):
         overall = as_int(first_value(row, OVERALL_KEYS))
@@ -182,6 +198,8 @@ def normalize_draft_payload(payload: Any, team_id: str = '') -> dict[str, Any]:
             'name': name,
             'position': position,
         }
+        if player.get('proTeamId') is not None:
+            item['proTeamId'] = player['proTeamId']
         if team_id and str(team) == str(team_id):
             item['draftedByConfiguredTeam'] = True
         normalized.append(item)
@@ -192,6 +210,37 @@ def normalize_draft_payload(payload: Any, team_id: str = '') -> dict[str, Any]:
         'inProgress': bool((payload.get('draftDetail') or {}).get('inProgress', payload.get('inProgress', False))) if isinstance(payload, dict) else False,
         'rawPickCount': len(pick_rows(payload)),
     }
+
+
+def get_player_directory(cfg: dict[str, str], force: bool = False) -> dict[int, dict[str, Any]]:
+    global _player_directory
+    if _player_directory is not None and not force:
+        return _player_directory
+    try:
+        _, payload = fetch_json(endpoint(cfg, 'kona_player_info'), cfg)
+    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError):
+        return _player_directory or {}
+    directory: dict[int, dict[str, Any]] = {}
+    collect_player_directory(payload, directory)
+    if directory or _player_directory is None:
+        _player_directory = directory
+    return _player_directory or {}
+
+
+def normalize_with_directory(payload: Any, cfg: dict[str, str]) -> dict[str, Any]:
+    global _directory_miss_attempted
+    directory = get_player_directory(cfg)
+    normalized = normalize_draft_payload(payload, cfg['team_id'], directory)
+    missing = {
+        item['espnPlayerId'] for item in normalized['picks']
+        if not item.get('name') or not item.get('position')
+    }
+    refreshable = missing - _directory_miss_attempted
+    if refreshable:
+        _directory_miss_attempted.update(refreshable)
+        directory = get_player_directory(cfg, force=True)
+        normalized = normalize_draft_payload(payload, cfg['team_id'], directory)
+    return normalized
 
 
 def capability_update(completed_count: int) -> dict[str, Any]:
@@ -222,7 +271,7 @@ def draft_response() -> tuple[int, dict[str, Any]]:
         return safe_error('espn-http-error', f'ESPN returned HTTP {exc.code}.')
     except (URLError, TimeoutError, OSError, json.JSONDecodeError):
         return safe_error('network-error', 'ESPN could not be reached; retrying is safe.')
-    normalized = normalize_draft_payload(payload, cfg['team_id'])
+    normalized = normalize_with_directory(payload, cfg)
     cap = capability_update(len(normalized['picks']))
     return 200, {
         'ok': True,
@@ -273,12 +322,13 @@ class Handler(BaseHTTPRequestHandler):
         self.serve_static(path)
 
     def serve_static(self, path: str) -> None:
-        relative = path.lstrip('/') or 'index.html'
-        candidate = (ROOT / relative).resolve()
-        if ROOT not in candidate.parents and candidate != ROOT:
+        # Explicit allowlist: never expose the repository as a general file server.
+        if path not in ALLOWED_STATIC_FILES:
             self.send_error(404)
             return
-        if not candidate.is_file():
+        relative = 'index.html' if path == '/' else path.lstrip('/')
+        candidate = (ROOT / relative).resolve()
+        if not candidate.is_file() or ROOT not in candidate.parents:
             self.send_error(404)
             return
         content_type = 'text/plain; charset=utf-8'
