@@ -500,7 +500,7 @@
     const qbRemaining = ctx.positionRemaining.QB || 0;
     const teRemaining = ctx.positionRemaining.TE || 0;
 
-    if (ctx.starters.QB < 1 && qbRemaining >= 4 && top.position !== "QB") {
+    if (ctx.picksUntilReturn != null && ctx.starters.QB < 1 && qbRemaining >= 4 && top.position !== "QB") {
       guidance.push({
         type: "WAIT ON QB",
         reasons: [
@@ -513,7 +513,7 @@
         ]
       });
     }
-    if (ctx.starters.TE < 1 && teRemaining >= 3 && top.position !== "TE") {
+    if (ctx.picksUntilReturn != null && ctx.starters.TE < 1 && teRemaining >= 3 && top.position !== "TE") {
       guidance.push({
         type: "WAIT ON TE",
         reasons: [

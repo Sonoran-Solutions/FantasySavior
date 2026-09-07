@@ -207,8 +207,7 @@ button:active { transform: translateY(1px); }
   color: var(--text-dim);
   border-bottom: 1px solid var(--border);
 }
-.unlisted-action { padding: 8px 10px 0; }
-.unlisted-action .btn { width: 100%; min-height: 38px; border-color: var(--amber); color: var(--amber); }
+.unlisted-btn { min-height: 38px; border-color: var(--amber); color: var(--amber); white-space: nowrap; }
 .tier-depletion { text-align: right; }
 
 .board-list {

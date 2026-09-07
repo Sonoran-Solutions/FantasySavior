@@ -192,6 +192,10 @@
     renderFilters();
     var list = visiblePlayers();
     var el = $("boardList");
+    var schedule = FS.myPickSchedule(FS.LEAGUE.teams, state.draftPosition, FS.LEAGUE.totalRounds);
+    $("unlistedBtn").textContent = FS.isUserPick(schedule, state.currentOverallPick)
+      ? "My unlisted pick"
+      : "Unlisted / Skip Pick";
 
     $("boardCount").textContent = list.length + " available";
 
@@ -443,7 +447,16 @@
     if (draftedByMe && position == null) return;
     if (position != null) position = position.trim().toUpperCase();
     var result = FS.applyUnlistedPick(state, draftedByMe, position);
-    if (!result.ok) { toast("Draft is complete.", "error"); return; }
+    if (!result.ok) {
+      if (result.reason === "position-required") {
+        toast("Choose QB, RB, WR, TE, DST, or K.", "error");
+      } else if (result.reason === "draft-complete") {
+        toast("Draft is complete.", "error");
+      } else {
+        toast("Could not record that pick.", "error");
+      }
+      return;
+    }
     state = result.state;
     saveState();
     renderApp();

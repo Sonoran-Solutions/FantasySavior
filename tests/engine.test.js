@@ -3,6 +3,7 @@
 
 const assert = require("assert");
 const path = require("path");
+const fs = require("fs");
 const FS = require(path.join(__dirname, "..", "engine.js"));
 const data = require(path.join(__dirname, "..", "data", "players.json"));
 
@@ -197,6 +198,7 @@ test("final scheduled pick has no return label or score adjustment", function ()
   assert.strictEqual(rec.ranked[0].returnProbability, null);
   assert.strictEqual(rec.ranked[0].returnLabel, "FINAL PICK");
   assert.ok(!rec.ranked[0].reasons.some((r) => /return|survive/i.test(r)));
+  assert.ok(!rec.waitGuidance.some((g) => g.type === "WAIT ON QB" || g.type === "WAIT ON TE"));
   assert.deepStrictEqual(players, before);
 });
 
@@ -208,6 +210,22 @@ test("user-owned unlisted pick preserves position in roster calculations", funct
   const roster = FS.myPickEntries(s).map((p) => ({ position: p.position }));
   assert.strictEqual(FS.countsByPosition(roster).RB, 1);
   assert.strictEqual(FS.undo(s).state.picks.length, 0);
+});
+
+test("invalid user-owned unlisted position is rejected without advancing", function () {
+  const s = FS.createInitialState(1);
+  const result = FS.applyUnlistedPick(s, true, "INVALID");
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, "position-required");
+  assert.strictEqual(s.currentOverallPick, 1);
+  assert.deepStrictEqual(s.picks, []);
+});
+
+test("unlisted control has one DOM id and both ownership labels", function () {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.strictEqual((html.split("id=\"unlistedBtn\"").length - 1), 1);
+  assert.ok(html.includes("Unlisted / Skip Pick"));
+  assert.ok(fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8").includes("My unlisted pick"));
 });
 
 test("K/DST suppressed early", function () {
