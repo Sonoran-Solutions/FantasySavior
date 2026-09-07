@@ -52,6 +52,10 @@ Responsibilities:
 
 Player data is read-only during a draft.
 
+`data/players.json` is the human-editable source of truth. It is embedded at build time
+into `data/players.data.js` (via `scripts/embed-data.js`) as a browser global so the app
+has no runtime fetch and works offline and from `file://` after load.
+
 ### Draft state store
 
 The single source of truth for the active draft.

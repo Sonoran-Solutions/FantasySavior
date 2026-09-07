@@ -156,6 +156,13 @@ If a feature threatens reliability during the live draft, cut it.
 
 ## Status
 
-**Phase 0 — documentation and MVP scaffold.**
+**MVP implemented (Phases 1–4).** The local-first vanilla web app is functional:
+draft-state engine, snake-pick math, player board with search/filters, recommendation
+engine, Fold-aware two-column layout, persistence, undo, and JSON import/export are all
+in place. A small Node test suite covers snake picks (slots 1/4/5/8), undo, draft
+exclusion, K/DST suppression, and a full 128-pick mock draft.
+
+Remaining before the live draft: on-device verification on the Galaxy Z Fold 5 and a
+final data refresh (rankings/ADP/injury) shortly before the draft (Phase 5).
 
 The first real-world test is the 2026 family fantasy draft.

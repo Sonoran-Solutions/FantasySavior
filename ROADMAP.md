@@ -12,9 +12,9 @@ The roadmap therefore separates **draft-day survival** from everything that woul
 - [x] Define local-first architecture
 - [x] Define recommendation philosophy
 - [x] Define mobile/Fold layout direction
-- [ ] Choose/confirm player ranking + ADP source for the first dataset
-- [ ] Create initial `data/players.json`
-- [ ] Add dataset timestamp/source metadata
+- [x] Choose/confirm player ranking + ADP source for the first dataset
+- [x] Create initial `data/players.json`
+- [x] Add dataset timestamp/source metadata
 
 Exit criteria:
 
@@ -26,20 +26,20 @@ Exit criteria:
 
 **Priority: critical**
 
-- [ ] Create base application scaffold
-- [ ] Implement league preset
-- [ ] Input draft position 1–8
-- [ ] Generate all 16 snake-draft selections
-- [ ] Load static player dataset
-- [ ] Track overall pick number
-- [ ] Mark player `Drafted by other`
-- [ ] Mark player `Drafted by me`
-- [ ] Track user's roster
-- [ ] Exclude drafted players from all available-player views
-- [ ] Implement undo
-- [ ] Persist state after every mutation
-- [ ] Resume persisted draft after refresh
-- [ ] Reset/new-draft flow
+- [x] Create base application scaffold
+- [x] Implement league preset
+- [x] Input draft position 1–8
+- [x] Generate all 16 snake-draft selections
+- [x] Load static player dataset
+- [x] Track overall pick number
+- [x] Mark player `Drafted by other`
+- [x] Mark player `Drafted by me`
+- [x] Track user's roster
+- [x] Exclude drafted players from all available-player views
+- [x] Implement undo
+- [x] Persist state after every mutation
+- [x] Resume persisted draft after refresh
+- [x] Reset/new-draft flow
 
 Exit criteria:
 
@@ -51,20 +51,20 @@ Exit criteria:
 
 **Priority: critical**
 
-- [ ] Available-player list sorted by baseline rank
-- [ ] Search by player name
-- [ ] Filter by QB/RB/WR/TE/DST/K
-- [ ] Display team
-- [ ] Display standard rank/ECR
-- [ ] Display ADP
-- [ ] Display tier
-- [ ] Display bye week
-- [ ] Display injury/status marker
-- [ ] Large draft-action touch targets
-- [ ] Clear current overall pick
-- [ ] Clear current round
-- [ ] Clear next user pick
-- [ ] Compact user-roster view
+- [x] Available-player list sorted by baseline rank
+- [x] Search by player name
+- [x] Filter by QB/RB/WR/TE/DST/K
+- [x] Display team
+- [x] Display standard rank/ECR
+- [x] Display ADP
+- [x] Display tier
+- [x] Display bye week
+- [x] Display injury/status marker
+- [x] Large draft-action touch targets
+- [x] Clear current overall pick
+- [x] Clear current round
+- [x] Clear next user pick
+- [x] Compact user-roster view
 
 Exit criteria:
 
@@ -78,21 +78,21 @@ Exit criteria:
 
 Implement a transparent heuristic using the model in `docs/DRAFT_STRATEGY.md`.
 
-- [ ] Base player value
-- [ ] ADP value
-- [ ] Tier scarcity
-- [ ] Round-aware roster need
-- [ ] Positional advantage
-- [ ] Redundancy penalty
-- [ ] K/DST early-round suppression
-- [ ] Upside bias for bench rounds
-- [ ] Injury penalty
-- [ ] Approximate return-at-next-pick likelihood
-- [ ] Top recommendation
-- [ ] Alternative recommendations
-- [ ] Human-readable reasons
-- [ ] `WAIT ON QB` / `WAIT ON TE` style guidance when appropriate
-- [ ] Tier-depletion indicator
+- [x] Base player value
+- [x] ADP value
+- [x] Tier scarcity
+- [x] Round-aware roster need
+- [x] Positional advantage
+- [x] Redundancy penalty
+- [x] K/DST early-round suppression
+- [x] Upside bias for bench rounds
+- [x] Injury penalty
+- [x] Approximate return-at-next-pick likelihood
+- [x] Top recommendation
+- [x] Alternative recommendations
+- [x] Human-readable reasons
+- [x] `WAIT ON QB` / `WAIT ON TE` style guidance when appropriate
+- [x] Tier-depletion indicator
 
 Exit criteria:
 
@@ -104,13 +104,13 @@ Exit criteria:
 
 **Priority: high**
 
-- [ ] Two-column unfolded layout
-- [ ] Available players on primary side
-- [ ] Copilot + roster on secondary side
-- [ ] One-column narrow fallback
-- [ ] Verify no hover-only interactions
-- [ ] Verify touch targets
-- [ ] Verify no accidental horizontal page scrolling
+- [x] Two-column unfolded layout
+- [x] Available players on primary side
+- [x] Copilot + roster on secondary side
+- [x] One-column narrow fallback
+- [x] Verify no hover-only interactions
+- [x] Verify touch targets
+- [x] Verify no accidental horizontal page scrolling
 - [ ] Verify recommendation remains visible/useful during rapid player entry
 - [ ] Test browser refresh/relaunch during active draft
 

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="description" content="FantasySavior — a mobile-first fantasy football draft copilot." />
+  <title>FantasySavior</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">FS</span>
+      <span class="brand-name">FantasySavior</span>
+    </div>
+    <div class="draft-status" id="draftStatus"></div>
+    <div class="top-actions" id="topActions">
+      <button id="undoBtn" class="btn btn-undo" type="button">↶ Undo</button>
+      <button id="exportBtn" class="btn" type="button">Export</button>
+      <button id="importBtn" class="btn" type="button">Import</button>
+      <button id="resetBtn" class="btn btn-danger" type="button">New draft</button>
+    </div>
+  </header>
+
+  <main id="setup" class="setup hidden">
+    <div class="setup-card">
+      <h1>FantasySavior</h1>
+      <p class="setup-sub">
+        Draft copilot for an 8-team standard snake draft. Enter your draft position to begin.
+      </p>
+
+      <div id="resumeBox" class="resume-box hidden">
+        <div class="resume-summary" id="resumeSummary"></div>
+        <button id="resumeBtn" class="btn btn-primary btn-block" type="button">Resume draft</button>
+      </div>
+
+      <div class="setup-section">
+        <h2>New draft — pick your slot</h2>
+        <div class="slot-picker" id="slotPicker"></div>
+      </div>
+
+      <div class="setup-section setup-meta">
+        <details>
+          <summary>Recover from a JSON backup</summary>
+          <p class="hint">Import a previously exported draft state.</p>
+          <button id="setupImportBtn" class="btn" type="button">Import JSON</button>
+        </details>
+      </div>
+    </div>
+  </main>
+
+  <main id="app" class="app hidden">
+    <section class="panel board">
+      <div class="board-head">
+        <input id="search" class="search" type="search" placeholder="Search players…" autocomplete="off" />
+        <div class="filters" id="filters" role="group" aria-label="Position filter"></div>
+      </div>
+      <div class="board-meta">
+        <span id="boardCount" class="board-count"></span>
+        <span id="tierDepletion" class="tier-depletion"></span>
+      </div>
+      <div class="board-list" id="boardList"></div>
+    </section>
+
+    <section class="panel copilot">
+      <div class="pick-context" id="pickContext"></div>
+      <div class="recommendation" id="recommendation"></div>
+      <div class="roster" id="roster"></div>
+    </section>
+  </main>
+
+  <input type="file" id="importFile" accept="application/json,.json" class="hidden" />
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="data/players.data.js"></script>
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
