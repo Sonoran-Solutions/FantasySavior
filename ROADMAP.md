@@ -124,6 +124,13 @@ Exit criteria:
 
 **Priority: critical before live use**
 
+> **Release is currently blocked.** Resolve every P0/P1 item in [`RELEASE_BLOCKERS.md`](RELEASE_BLOCKERS.md) before treating the MVP as ready for the live draft.
+
+- [ ] Fix return-horizon logic while the user is on the clock
+- [ ] Add reversible unlisted/unknown pick support
+- [ ] Make Mine/Other ownership actions schedule-aware
+- [ ] Surface and verify embedded player-data freshness
+- [ ] Complete all blocker-specific regression tests in `RELEASE_BLOCKERS.md`
 - [ ] Simulate a complete draft from slot 1
 - [ ] Simulate a complete draft from slot 4
 - [ ] Simulate a complete draft from slot 8
@@ -141,7 +148,7 @@ Exit criteria:
 
 Exit criteria:
 
-> The developer is comfortable trusting the app during a timed live pick.
+> Every release blocker is resolved and the developer is comfortable trusting the app during a timed live pick.
 
 ---
 
