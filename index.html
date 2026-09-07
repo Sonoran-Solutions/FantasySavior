@@ -17,6 +17,11 @@
     </div>
     <div class="draft-status" id="draftStatus"></div>
     <div class="data-status" id="dataStatus"></div>
+    <div class="live-controls" id="liveControls">
+      <span id="liveStatus" class="live-status">ESPN LIVE: OFF</span>
+      <button id="liveConnectBtn" class="btn" type="button">Connect ESPN</button>
+      <button id="livePauseBtn" class="btn hidden" type="button">Pause Live Sync</button>
+    </div>
     <div class="top-actions" id="topActions">
       <button id="undoBtn" class="btn btn-undo" type="button">↶ Undo</button>
       <button id="exportBtn" class="btn" type="button">Export</button>
@@ -80,6 +85,7 @@
   <script src="data/players.data.js"></script>
   <script src="data/draft-day-refresh.js?v=20260907-0902"></script>
   <script src="engine.js"></script>
+  <script src="live-sync.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

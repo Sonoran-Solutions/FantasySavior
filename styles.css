@@ -94,6 +94,13 @@ button:active { transform: translateY(1px); }
 
 .data-status { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
 .data-warning { color: var(--amber); }
+.live-controls { display: flex; align-items: center; gap: 6px; }
+.live-status { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+.live-status.live-ok { color: var(--green); }
+.live-status.live-warn { color: var(--amber); }
+.live-status.live-error { color: var(--red); }
+.live-controls .btn { min-height: 34px; padding: 0 9px; font-size: 12px; }
+.sync-disabled { opacity: 0.45; }
 
 .top-actions { display: flex; gap: 6px; }
 .top-actions .btn { padding: 0 10px; font-size: 13px; min-height: 38px; }

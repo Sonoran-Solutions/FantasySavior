@@ -1,0 +1,10 @@
+{
+  "preDraft": {"draftDetail": {"inProgress": false, "picks": [{"overallPickNumber": 1, "playerId": -1}, {"overallPickNumber": 2, "playerId": -1}]}},
+  "completed": {"draftDetail": {"inProgress": true, "picks": [
+    {"overallPickNumber": 2, "roundId": 1, "roundPickNumber": 2, "teamId": 7, "playerId": 2002},
+    {"overallPickNumber": 1, "roundId": 1, "roundPickNumber": 1, "teamId": 4, "playerId": 2001}
+  ]}, "players": [
+    {"id": 2001, "fullName": "Jahmyr Gibbs", "defaultPositionId": 2},
+    {"id": 2002, "fullName": "Mystery Player", "defaultPositionId": 3}
+  ]}
+}

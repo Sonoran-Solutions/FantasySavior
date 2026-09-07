@@ -9,6 +9,8 @@
   var playersById = {};
   var state = null;
   var dataMetadata = null;
+  var liveSync = null;
+  var liveActive = false;
 
   var filter = "ALL";
   var searchQuery = "";
@@ -122,6 +124,49 @@
   }
 
   // -------------------------------------------------------------------------
+  // ESPN Live Mode
+  // -------------------------------------------------------------------------
+  function setLiveStatus(info) {
+    var el = $("liveStatus");
+    var phase = info && info.phase ? info.phase : "off";
+    var message = info && info.message ? info.message : "OFF";
+    el.textContent = "ESPN LIVE: " + message;
+    el.className = "live-status" + (phase === "synced" ? " live-ok" : (phase === "auth-failed" || phase === "conflict" ? " live-error" : (phase === "off" || phase === "paused" ? "" : " live-warn")));
+    liveActive = !!(info && info.live);
+    $("liveConnectBtn").classList.toggle("hidden", liveActive || phase === "connecting" || phase === "probing");
+    $("livePauseBtn").classList.toggle("hidden", !liveActive && phase !== "connecting" && phase !== "probing");
+    if (state) {
+      renderBoard();
+      renderUndoButton();
+    }
+  }
+
+  function startLiveSync() {
+    if (!state) { toast("Choose a draft slot before connecting ESPN.", "error"); return; }
+    if (!liveSync) return;
+    liveSync.start();
+  }
+
+  function pauseLiveSync() {
+    if (liveSync) liveSync.pause();
+    toast("Live sync paused. Manual mode is available.", "ok");
+  }
+
+  function createLiveSync() {
+    liveSync = window.FantasySaviorLiveSync.create({
+      FS: FS,
+      getState: function () { return state; },
+      getPlayers: function () { return players; },
+      setState: function (next) { state = next; saveState(); },
+      render: renderApp,
+      onStatus: setLiveStatus,
+      onResult: function (result) {
+        if (result && result.warnings && result.warnings.length) toast(result.warnings[0], "error");
+      }
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Main app render
   // -------------------------------------------------------------------------
   function renderApp() {
@@ -155,7 +200,7 @@
   }
 
   function renderUndoButton() {
-    var canUndo = state && state.undoStack.length > 0;
+    var canUndo = !liveActive && state && state.undoStack.length > 0;
     $("undoBtn").disabled = !canUndo;
     $("undoBtn").style.opacity = canUndo ? "1" : "0.4";
   }
@@ -196,6 +241,8 @@
     $("unlistedBtn").textContent = FS.isUserPick(schedule, state.currentOverallPick)
       ? "My unlisted pick"
       : "Unlisted / Skip Pick";
+    $("unlistedBtn").disabled = liveActive;
+    $("unlistedBtn").classList.toggle("sync-disabled", liveActive);
 
     $("boardCount").textContent = list.length + " available";
 
@@ -241,6 +288,7 @@
     var adpTxt = p.adp != null ? String(Math.round(p.adp)) : "—";
     var schedule = FS.myPickSchedule(FS.LEAGUE.teams, state.draftPosition, FS.LEAGUE.totalRounds);
     var onClock = FS.isUserPick(schedule, state.currentOverallPick);
+    var disabled = liveActive ? ' disabled aria-disabled="true"' : "";
     return (
       '<div class="player-row" data-id="' + escapeHtml(p.id) + '">' +
         '<span class="pos-badge pos-' + escapeHtml(p.position) + '">' + escapeHtml(p.position) + "</span>" +
@@ -257,8 +305,8 @@
         "</div>" +
         '<div class="player-actions">' +
           (onClock
-            ? '<button class="pick-btn mine" data-action="mine">Draft to me</button>'
-            : '<button class="pick-btn other" data-action="other">Mark drafted</button>') +
+            ? '<button class="pick-btn mine' + (liveActive ? " sync-disabled" : "") + '" data-action="mine"' + disabled + '>Draft to me</button>'
+            : '<button class="pick-btn other' + (liveActive ? " sync-disabled" : "") + '" data-action="other"' + disabled + '>Mark drafted</button>') +
         "</div>" +
       "</div>"
     );
@@ -348,6 +396,7 @@
   function altListHtml(rec) {
     var alts = rec.shortlist.filter(function (s) { return !rec.top || s.player.id !== rec.top.player.id; });
     if (!alts.length) return "";
+    var disabled = liveActive ? ' disabled aria-disabled="true"' : "";
     var html = '<div class="rec-head">Alternatives</div><div class="alt-list">';
     alts.forEach(function (s) {
       var p = s.player;
@@ -362,7 +411,7 @@
             "</div>" +
           "</div>" +
           '<div class="player-actions">' +
-            '<button class="pick-btn ' + (rec.isUserPick ? "mine" : "other") + '" data-id="' + escapeHtml(p.id) + '" data-action="' + (rec.isUserPick ? "mine" : "other") + '">' + (rec.isUserPick ? "Draft to me" : "Mark drafted") + '</button>' +
+            '<button class="pick-btn ' + (rec.isUserPick ? "mine" : "other") + (liveActive ? " sync-disabled" : "") + '" data-id="' + escapeHtml(p.id) + '" data-action="' + (rec.isUserPick ? "mine" : "other") + '"' + disabled + '>' + (rec.isUserPick ? "Draft to me" : "Mark drafted") + '</button>' +
           "</div>" +
         "</div>";
     });
@@ -424,7 +473,7 @@
   // Actions
   // -------------------------------------------------------------------------
   function doPick(playerId, draftedByMe) {
-    if (!state) return;
+    if (!state || liveActive) return;
     var schedule = FS.myPickSchedule(FS.LEAGUE.teams, state.draftPosition, FS.LEAGUE.totalRounds);
     if (FS.isUserPick(schedule, state.currentOverallPick) !== !!draftedByMe &&
         !confirm("This is scheduled as " + (FS.isUserPick(schedule, state.currentOverallPick) ? "your" : "an opponent's") + " pick. Record it anyway?")) return;
@@ -440,7 +489,7 @@
   }
 
   function doUnlistedPick() {
-    if (!state) return;
+    if (!state || liveActive) return;
     var schedule = FS.myPickSchedule(FS.LEAGUE.teams, state.draftPosition, FS.LEAGUE.totalRounds);
     var draftedByMe = FS.isUserPick(schedule, state.currentOverallPick);
     var position = draftedByMe ? window.prompt("Position for your unlisted pick (QB, RB, WR, TE, DST, or K):", "RB") : null;
@@ -464,7 +513,7 @@
   }
 
   function doUndo() {
-    if (!state) return;
+    if (!state || liveActive) return;
     var result = FS.undo(state);
     if (!result.ok) {
       toast("Nothing to undo.", "error");
@@ -479,6 +528,7 @@
   function doReset() {
     var proceed = confirm("Start a new draft? This clears the current draft (you can Export first).");
     if (!proceed) return;
+    if (liveSync) liveSync.stop();
     clearState();
     renderSetup();
     toast("Draft cleared. Pick your slot.");
@@ -544,6 +594,8 @@
     });
 
     $("undoBtn").addEventListener("click", doUndo);
+    $("liveConnectBtn").addEventListener("click", startLiveSync);
+    $("livePauseBtn").addEventListener("click", pauseLiveSync);
     $("unlistedBtn").addEventListener("click", doUnlistedPick);
     $("resetBtn").addEventListener("click", doReset);
     $("exportBtn").addEventListener("click", doExport);
@@ -589,6 +641,7 @@
   function boot() {
     loadData();
     bindEvents();
+    createLiveSync();
 
     var existing = loadState();
     if (existing) {

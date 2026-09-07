@@ -117,7 +117,10 @@
       playerId: p.playerId,
       draftedByMe: p.draftedByMe,
       ...(p.position ? { position: p.position } : {}),
-      ...(p.unlisted ? { unlisted: true } : {})
+      ...(p.unlisted ? { unlisted: true } : {}),
+      ...(p.source ? { source: p.source } : {}),
+      ...(p.espnPlayerId != null ? { espnPlayerId: p.espnPlayerId } : {}),
+      ...(p.name ? { name: p.name } : {})
     };
   }
 
@@ -157,7 +160,7 @@
     return { ok: true, state: next };
   }
 
-  function applyUnlistedPick(state, draftedByMe, position) {
+  function applyUnlistedPick(state, draftedByMe, position, metadata) {
     if (isComplete(state)) return { ok: false, reason: "draft-complete" };
     if (draftedByMe && ["QB", "RB", "WR", "TE", "DST", "K"].indexOf(position) === -1) {
       return { ok: false, reason: "position-required" };
@@ -169,7 +172,8 @@
       picks: state.picks.concat([
         Object.assign(
           { overall: state.currentOverallPick, playerId: null, draftedByMe: !!draftedByMe, unlisted: true },
-          position ? { position: position } : {}
+          position ? { position: position } : {},
+          metadata || {}
         )
       ]),
       undoStack: state.undoStack.concat([snapshot(state)])

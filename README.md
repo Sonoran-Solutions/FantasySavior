@@ -166,3 +166,23 @@ Remaining before the live draft: on-device verification on the Galaxy Z Fold 5 a
 final data refresh (rankings/ADP/injury) shortly before the draft (Phase 5).
 
 The first real-world test is the 2026 family fantasy draft.
+
+## Optional ESPN Live Mode
+
+Manual Mode remains the default and works without a server. For a draft-day ESPN
+experiment, run the local same-origin bridge on the Ubuntu machine:
+
+```bash
+cp server/.env.example server/.env
+# Fill ESPN_LEAGUE_ID, ESPN_SEASON, ESPN_S2, SWID, and optionally ESPN_TEAM_ID.
+python3 scripts/espn_probe.py
+python3 server/espn_live_server.py
+```
+
+Open `http://<ubuntu-lan-ip>:8787/` on the Fold. The bridge keeps ESPN cookies on
+the local machine, returns only normalized completed picks, and never submits picks.
+Live Mode stays unverified/manual until the bridge observes a real completed-pick
+change. Any authentication, mapping, sequence, or reconciliation uncertainty stops
+sync and leaves the manual controls available. See
+[`docs/ESPN_LIVE_MODE_IMPLEMENTATION.md`](docs/ESPN_LIVE_MODE_IMPLEMENTATION.md)
+for the go/no-go checklist.
