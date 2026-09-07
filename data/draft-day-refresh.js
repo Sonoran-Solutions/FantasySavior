@@ -1,5 +1,5 @@
 /* FantasySavior — final draft-day data refresh overlay.
- * Snapshot: 2026-09-07 09:02 America/Phoenix.
+ * Snapshot: 2026-09-07 14:49 America/Phoenix.
  *
  * The baseline data/players.json remains the reproducible Sep 6 snapshot. This
  * small overlay captures only material late-breaking changes so the deployed
@@ -13,13 +13,13 @@
   if (!data || !Array.isArray(data.players)) return;
 
   data.metadata = data.metadata || {};
-  data.metadata.generatedAt = "2026-09-07T09:02:00-07:00";
+  data.metadata.generatedAt = "2026-09-07T14:49:00-07:00";
   data.metadata.refreshBeforeDraft = false;
-  data.metadata.refreshNote = "Final Sep 7 draft-day availability/role refresh; baseline ranks preserved except material late-breaking movers.";
+  data.metadata.refreshNote = "Final Sep 7 pre-draft injury/availability refresh; baseline ranks preserved except previously identified material movers.";
   data.metadata.sources = [
     "FantasyPros 2026 standard overall/positional ECR and draft tiers; checked Sep 7 2026",
-    "FantasyPros player news, injury monitor, sleepers and ADP; checked Sep 7 2026",
-    "NFL.com injury/discipline updates; checked Sep 7 2026",
+    "FantasyPros same-day Week 1 player/practice news; checked Sep 7 2026 at 14:49 America/Phoenix",
+    "NFL.com Week 1 injury, roster and discipline updates; checked Sep 7 2026",
     "Reuters late-preseason injury reports; checked Sep 7 2026",
     "DraftSharks Week 1 injury update for TreVeyon Henderson; checked Sep 7 2026"
   ];
@@ -50,7 +50,7 @@
 
   // High-value availability corrections.
   patch("ja-marr-chase", {
-    injuryStatus: "Knee - expected Week 1",
+    injuryStatus: "Knee hyperextension - returned to practice Monday; Week 1 trending available",
     availabilityRisk: "low",
     tags: ["elite", "injury-monitor"]
   });
@@ -80,26 +80,27 @@
     tags: ["injury-monitor", "landmine-at-cost", "risk-medium"]
   });
 
-  // Chicago practice injuries from Sep 4.
+  // Chicago practice updates. Swift was back Monday after last week's cramp;
+  // Monangai also returned, while Odunze did not practice and is the concern.
   patch("d-andre-swift", {
-    injuryStatus: "Core/midsection issue - status TBD",
-    availabilityRisk: "medium",
-    tags: ["injury-monitor", "risk-medium"]
-  });
-  patch("rome-odunze", {
-    injuryStatus: "Right-leg issue - preliminary reports encouraging",
+    injuryStatus: "Cramp last week - back at practice Monday",
     availabilityRisk: "low",
     tags: ["injury-monitor"]
   });
+  patch("rome-odunze", {
+    injuryStatus: "Right-leg issue - DNP Monday; Week 1 status uncertain",
+    availabilityRisk: "medium",
+    tags: ["injury-monitor", "risk-medium"]
+  });
   patch("kyle-monangai", {
-    injuryStatus: "Knee issue - monitor",
+    injuryStatus: "Hyperextended knee - back at practice Monday; Week 1 possible",
     availabilityRisk: "medium",
     tags: ["injury-monitor", "risk-medium"]
   });
 
   // Week 1 trend changes.
   patch("treveyon-henderson", {
-    injuryStatus: "Ankle - DNP; Week 1 trending doubtful",
+    injuryStatus: "Ankle - DNP Monday; likely out Week 1",
     availabilityRisk: "high",
     tags: ["injury-monitor", "avoid-at-cost", "risk-high"]
   });
@@ -109,12 +110,12 @@
     tags: ["sleeper", "week1-opportunity"]
   });
   patch("emeka-egbuka", {
-    injuryStatus: "Toe sprain - Week 1 uncertain",
+    injuryStatus: "Toe sprain - individual drills Monday; Week 1 still monitor",
     availabilityRisk: "medium",
     tags: ["injury-monitor", "risk-medium"]
   });
   patch("george-kittle", {
-    injuryStatus: "Achilles recovery - activated and practicing",
+    injuryStatus: "Achilles recovery - practicing Monday; on track for Week 1, possible snap limit",
     availabilityRisk: "low",
     tags: ["injury-monitor"]
   });
