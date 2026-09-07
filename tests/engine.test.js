@@ -186,6 +186,30 @@ test("recommend uses upcoming pick between turns and finite final horizon", func
   assert.ok(rec.ranked.every((x) => Number.isFinite(x.returnProbability)));
 });
 
+test("final scheduled pick has no return label or score adjustment", function () {
+  const s = FS.createInitialState(1);
+  s.currentOverallPick = 128;
+  const before = JSON.parse(JSON.stringify(players));
+  const rec = FS.recommend(players, s);
+  assert.strictEqual(rec.returnHorizon, null);
+  assert.strictEqual(rec.picksUntilReturn, null);
+  assert.ok(rec.ranked.every((x) => Number.isFinite(x.score)));
+  assert.strictEqual(rec.ranked[0].returnProbability, null);
+  assert.strictEqual(rec.ranked[0].returnLabel, "FINAL PICK");
+  assert.ok(!rec.ranked[0].reasons.some((r) => /return|survive/i.test(r)));
+  assert.deepStrictEqual(players, before);
+});
+
+test("user-owned unlisted pick preserves position in roster calculations", function () {
+  let s = FS.createInitialState(1);
+  s = FS.applyUnlistedPick(s, true, "RB").state;
+  assert.strictEqual(s.picks[0].position, "RB");
+  assert.strictEqual(FS.myPickEntries(s).length, 1);
+  const roster = FS.myPickEntries(s).map((p) => ({ position: p.position }));
+  assert.strictEqual(FS.countsByPosition(roster).RB, 1);
+  assert.strictEqual(FS.undo(s).state.picks.length, 0);
+});
+
 test("K/DST suppressed early", function () {
   const s = FS.createInitialState(1);
   const rec = FS.recommend(players, s);

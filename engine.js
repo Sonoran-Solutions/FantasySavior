@@ -116,6 +116,7 @@
       overall: p.overall,
       playerId: p.playerId,
       draftedByMe: p.draftedByMe,
+      ...(p.position ? { position: p.position } : {}),
       ...(p.unlisted ? { unlisted: true } : {})
     };
   }
@@ -130,6 +131,10 @@
     return state.picks
       .filter(function (p) { return p.draftedByMe && p.playerId != null; })
       .map(function (p) { return p.playerId; });
+  }
+
+  function myPickEntries(state) {
+    return state.picks.filter(function (p) { return p.draftedByMe; });
   }
 
   // Apply one draft mutation. Returns { ok, state } or { ok, reason }.
@@ -152,14 +157,20 @@
     return { ok: true, state: next };
   }
 
-  function applyUnlistedPick(state, draftedByMe) {
+  function applyUnlistedPick(state, draftedByMe, position) {
     if (isComplete(state)) return { ok: false, reason: "draft-complete" };
+    if (draftedByMe && ["QB", "RB", "WR", "TE", "DST", "K"].indexOf(position) === -1) {
+      return { ok: false, reason: "position-required" };
+    }
     const next = {
       version: state.version,
       draftPosition: state.draftPosition,
       currentOverallPick: state.currentOverallPick + 1,
       picks: state.picks.concat([
-        { overall: state.currentOverallPick, playerId: null, draftedByMe: !!draftedByMe, unlisted: true }
+        Object.assign(
+          { overall: state.currentOverallPick, playerId: null, draftedByMe: !!draftedByMe, unlisted: true },
+          position ? { position: position } : {}
+        )
       ]),
       undoStack: state.undoStack.concat([snapshot(state)])
     };
@@ -294,12 +305,13 @@
 
   // Probability a player is still on the board at the user's next pick (logistic).
   function returnProbability(player, returnHorizon) {
-    if (returnHorizon == null) return 0;
+    if (returnHorizon == null) return null;
     const distance = player.adp - returnHorizon;
     return 1 / (1 + Math.exp(-distance / WEIGHTS.returnLogisticScale));
   }
 
   function returnLabel(probability) {
+    if (probability == null) return "FINAL PICK";
     if (probability < 0.1) return "Very unlikely to return";
     if (probability < 0.3) return "Unlikely to return";
     if (probability < 0.6) return "Could return";
@@ -465,7 +477,7 @@
     }
     if (ctx.picksUntilReturn != null && ctx.picksUntilReturn <= 2 && playerReturnProbability < 0.3) {
       reasons.push("Unlikely to survive to your next pick");
-    } else if (playerReturnProbability < 0.15) {
+    } else if (playerReturnProbability != null && playerReturnProbability < 0.15) {
       reasons.push("Unlikely to return");
     }
     if (hasUpsideTag(player) && ctx.round >= 9) {
@@ -493,9 +505,11 @@
         type: "WAIT ON QB",
         reasons: [
           qbRemaining + " QBs remain in the player pool",
-          ctx.picksUntilNext <= 6
-            ? "Your next pick is only " + ctx.picksUntilNext + " selections away"
-            : "You can wait for better value"
+          ctx.picksUntilReturn == null
+            ? "No later draft opportunity"
+            : ctx.isUserPick
+            ? "Your following pick is " + ctx.picksUntilReturn + " selections away"
+            : "Your next pick is " + ctx.picksUntilNext + " selections away"
         ]
       });
     }
@@ -526,9 +540,11 @@
     const picksUntilNext = next == null ? 0 : next - state.currentOverallPick;
     const picksUntilReturn = returnHorizon == null ? null : returnHorizon - state.currentOverallPick;
 
-    const myPlayers = myPlayerIds(state)
-      .map(function (id) { return playerById(players, id); })
-      .filter(Boolean);
+    const myPlayers = myPickEntries(state).map(function (pick) {
+      return pick.playerId == null
+        ? { id: null, name: "Unlisted pick", position: pick.position, rank: Number.MAX_SAFE_INTEGER }
+        : playerById(players, pick.playerId);
+    }).filter(Boolean);
     const counts = countsByPosition(myPlayers);
     const starters = startersFilled(counts);
 
@@ -555,6 +571,7 @@
       nextUserPick: next,
       picksUntilNext: picksUntilNext,
       picksUntilReturn: picksUntilReturn,
+      isUserPick: userTurn,
       tierRemaining: tierRemaining,
       positionRemaining: positionRemaining,
       starters: starters,
@@ -576,7 +593,7 @@
         injuryPenalty(p) -
         kdstPenalty(p, round) +
         kdstFillBonus(p, starters, round) +
-        (1 - playerReturnProbability) * ROUND_WEIGHTS[roundBucket(round)].wontReturn;
+        (playerReturnProbability == null ? 0 : 1 - playerReturnProbability) * ROUND_WEIGHTS[roundBucket(round)].wontReturn;
 
       scored.push({
         player: p,
@@ -675,6 +692,7 @@
     snapshot: snapshot,
     draftedPlayerIds: draftedPlayerIds,
     myPlayerIds: myPlayerIds,
+    myPickEntries: myPickEntries,
     applyPick: applyPick,
     applyUnlistedPick: applyUnlistedPick,
     undo: undo,

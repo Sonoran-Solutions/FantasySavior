@@ -72,6 +72,7 @@
       if (p.playerId !== null && typeof p.playerId !== "string") return false;
       if (p.playerId === null && p.unlisted !== true) return false;
       if (typeof p.draftedByMe !== "boolean") return false;
+      if (p.playerId === null && p.draftedByMe && ["QB", "RB", "WR", "TE", "DST", "K"].indexOf(p.position) === -1) return false;
     }
     return true;
   }
@@ -366,7 +367,11 @@
   }
 
   function rosterHtml() {
-    var mine = FS.myPlayerIds(state).map(function (id) { return playersById[id]; }).filter(Boolean);
+    var mine = FS.myPickEntries(state).map(function (pick) {
+      return pick.playerId == null
+        ? { name: "Unlisted pick", position: pick.position, rank: Number.MAX_SAFE_INTEGER }
+        : playersById[pick.playerId];
+    }).filter(Boolean);
     var counts = FS.countsByPosition(mine);
     var assignment = FS.assignSlots(mine);
 
@@ -434,7 +439,10 @@
     if (!state) return;
     var schedule = FS.myPickSchedule(FS.LEAGUE.teams, state.draftPosition, FS.LEAGUE.totalRounds);
     var draftedByMe = FS.isUserPick(schedule, state.currentOverallPick);
-    var result = FS.applyUnlistedPick(state, draftedByMe);
+    var position = draftedByMe ? window.prompt("Position for your unlisted pick (QB, RB, WR, TE, DST, or K):", "RB") : null;
+    if (draftedByMe && position == null) return;
+    if (position != null) position = position.trim().toUpperCase();
+    var result = FS.applyUnlistedPick(state, draftedByMe, position);
     if (!result.ok) { toast("Draft is complete.", "error"); return; }
     state = result.state;
     saveState();
